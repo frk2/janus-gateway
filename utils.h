@@ -82,5 +82,5 @@ int janus_get_opus_pt(const char *sdp);
  * @param sdp The SDP to parse
  * @returns The VP8 payload type, if found, -1 otherwise */
 int janus_get_vp8_pt(const char *sdp);
-
+void curl_post(char * url, char * data);
 #endif

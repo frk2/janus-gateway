@@ -13,6 +13,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <curl/curl.h>
 
 #include "utils.h"
 #include "debug.h"
@@ -55,6 +56,37 @@ gboolean janus_strcmp_const_time(const void *str1, const void *str2) {
 	g_free(buf2);
 	buf2 = NULL;
 	return result == 0;
+}
+
+void curl_post(char * url, char * jsondata)
+{
+    
+    CURL *curl;
+    CURLcode res;
+
+    JANUS_LOG(LOG_INFO, "Posting to URL: %s\n data: %s \n",url,jsondata);
+    curl = curl_easy_init();
+    if(curl) {
+        
+        curl_easy_setopt(curl, CURLOPT_URL, url );
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+        curl_easy_setopt(curl, CURLOPT_POST, 1);
+        
+        char * postfields = strdup(jsondata);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postfields);
+        
+        /* Perform the request, res will get the return code */ 
+        res = curl_easy_perform(curl);
+        /* Check for errors */ 
+        if(res != CURLE_OK)
+            fprintf(stderr, "curl_easy_perform() failed: %s\n",curl_easy_strerror(res));
+        //             else
+        //                 std::cerr << postfields_str << "\n";
+        
+        free(postfields);
+        /* always cleanup */ 
+        curl_easy_cleanup(curl);
+    }
 }
 
 void janus_flags_reset(janus_flags *flags) {

@@ -108,6 +108,7 @@ janus_LDADD = \
 	$(JANUS_LIBS) \
 	$(JANUS_MANUAL_LIBS) \
 	-lsrtp \
+	-lcurl \
 	$(NULL)
 
 BUILT_SOURCES = cmdline.c cmdline.h

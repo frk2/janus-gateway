@@ -153,6 +153,8 @@ void janus_videoroom_hangup_media(janus_plugin_session *handle);
 void janus_videoroom_destroy_session(janus_plugin_session *handle, int *error);
 char *janus_videoroom_query_session(janus_plugin_session *handle);
 int janus_create_videoroom_by_id(guint64 room_id);
+int janus_post_to_slack(guint64 room_id, gchar * name);
+                        
 /* Plugin setup */
 static janus_plugin janus_videoroom_plugin =
 	JANUS_PLUGIN_INIT (
@@ -776,6 +778,14 @@ void janus_videoroom_destroy_session(janus_plugin_session *handle, int *error) {
 
 	return;
 }
+
+int janus_post_to_slack(guint64 room_id, gchar* name)
+{
+    char jsondata[500];
+    g_snprintf(jsondata, 500, "{\"text\":\"%s started a audio call. To join please go to http://sh-god-test1.ec2.tinyspeck.com/janus-serverside/videomcutest.html?roomid=%"SCNu64"\"}", name,room_id);
+    curl_post("https://hooks.slack.com/services/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",jsondata);
+}
+
 
 int janus_create_videoroom_by_id(guint64 room_id)
 {
@@ -1680,6 +1690,7 @@ static void *janus_videoroom_handler(void *data) {
 		}
 		const char *request_text = json_string_value(request);
 		json_t *event = NULL;
+        gboolean just_created_videoroom = FALSE;
 		/* 'create' and 'destroy' are handled synchronously: what kind of participant is this session referring to? */
 		if(session->participant_type == janus_videoroom_p_type_none) {
 			JANUS_LOG(LOG_VERB, "Configuring new participant\n");
@@ -1716,6 +1727,7 @@ static void *janus_videoroom_handler(void *data) {
                     janus_mutex_lock(&rooms_mutex);
                     videoroom = g_hash_table_lookup(rooms, GUINT_TO_POINTER(room_id));
                     janus_mutex_unlock(&rooms_mutex);
+                    just_created_videoroom  = TRUE;
                 }
                 else
                 {
@@ -1757,6 +1769,9 @@ static void *janus_videoroom_handler(void *data) {
 				const char *display_text = display ? json_string_value(display) : NULL;
 				guint64 user_id = 0;
 				json_t *id = json_object_get(root, "id");
+                if (just_created_videoroom == TRUE)
+                    janus_post_to_slack(room_id,display_text);
+                
 				if(id) {
 					if(!json_is_integer(id)) {
 						JANUS_LOG(LOG_ERR, "Invalid element (id should be an integer)\n");
