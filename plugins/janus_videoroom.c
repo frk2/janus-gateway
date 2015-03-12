@@ -152,7 +152,7 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 void janus_videoroom_hangup_media(janus_plugin_session *handle);
 void janus_videoroom_destroy_session(janus_plugin_session *handle, int *error);
 char *janus_videoroom_query_session(janus_plugin_session *handle);
-int janus_create_videoroom_by_id(guint64 room_id,json_t * desc);
+int janus_create_videoroom_by_id(guint64 room_id);
 /* Plugin setup */
 static janus_plugin janus_videoroom_plugin =
 	JANUS_PLUGIN_INIT (
@@ -777,7 +777,7 @@ void janus_videoroom_destroy_session(janus_plugin_session *handle, int *error) {
 	return;
 }
 
-int janus_create_videoroom_by_id(guint64 room_id, json_t * desc)
+int janus_create_videoroom_by_id(guint64 room_id)
 {
     /* Create the room */
     janus_videoroom *videoroom = calloc(1, sizeof(janus_videoroom));
@@ -787,26 +787,19 @@ int janus_create_videoroom_by_id(guint64 room_id, json_t * desc)
         JANUS_LOG(LOG_FATAL, "Memory error!\n");
         return JANUS_VIDEOROOM_ERROR_UNKNOWN_ERROR;
     }
-    /* Generate a random ID */
+    /* Dont Generate a random ID */
     if(room_id == 0) {
-        while(room_id == 0) {
-            room_id = g_random_int();
-            if(g_hash_table_lookup(rooms, GUINT_TO_POINTER(room_id)) != NULL) {
-                /* Room ID already taken, try another one */
-                room_id = 0;
-            }
-        }
-    }
-    videoroom->room_id = room_id;
-    char *description = NULL;
-    if(desc != NULL) {
-        description = g_strdup(json_string_value(desc));
-    } else {
-        char roomname[255];
-        g_snprintf(roomname, 255, "Room %"SCNu64"", videoroom->room_id);
-        description = g_strdup(roomname);
+        janus_mutex_unlock(&rooms_mutex);
+        JANUS_LOG(LOG_FATAL, "Will not generate a random room!\n");
+        return JANUS_VIDEOROOM_ERROR_NO_SUCH_ROOM;
     }
     
+    videoroom->room_id = room_id;
+    char *description = NULL;
+    char roomname[255];
+    g_snprintf(roomname, 255, "Room %"SCNu64"", videoroom->room_id);
+    description = g_strdup(roomname);
+
     if(description == NULL) {
         janus_mutex_unlock(&rooms_mutex);
         JANUS_LOG(LOG_FATAL, "Memory error!\n");
@@ -1715,14 +1708,22 @@ static void *janus_videoroom_handler(void *data) {
 			janus_mutex_unlock(&rooms_mutex);
 			if(videoroom == NULL) {
 				JANUS_LOG(LOG_ERR, "No such room (%"SCNu64") creating one!\n", room_id);
-				//error_code = JANUS_VIDEOROOM_ERROR_NO_SUCH_ROOM;
+				
 				g_snprintf(error_cause, 512, "No such room (%"SCNu64")", room_id);
                 
-                janus_create_videoroom_by_id(room_id,NULL);
-                janus_mutex_lock(&rooms_mutex);
-                videoroom = g_hash_table_lookup(rooms, GUINT_TO_POINTER(room_id));
-                janus_mutex_unlock(&rooms_mutex);
-// 				goto error;
+                if (janus_create_videoroom_by_id(room_id) == 0)
+                {
+                    janus_mutex_lock(&rooms_mutex);
+                    videoroom = g_hash_table_lookup(rooms, GUINT_TO_POINTER(room_id));
+                    janus_mutex_unlock(&rooms_mutex);
+                }
+                else
+                {
+                    JANUS_LOG(LOG_ERR, "Error creating room (%"SCNu64")!\n", room_id);
+                    error_code = JANUS_VIDEOROOM_ERROR_NO_SUCH_ROOM;
+                    goto error;
+                }
+
 			}
 			if(videoroom->destroyed) {
 				JANUS_LOG(LOG_ERR, "No such room (%"SCNu64")\n", room_id);
