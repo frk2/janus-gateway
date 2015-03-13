@@ -3316,6 +3316,7 @@ static void janus_videoroom_participant_free(janus_videoroom_participant *p) {
     {
         JANUS_LOG(LOG_INFO, "Last participant has left, mark room dead\n");
         room->destroyed = janus_get_monotonic_time();
+        old_rooms = g_list_append(old_rooms, room);
     }
         
 	free(p);
