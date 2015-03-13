@@ -154,6 +154,7 @@ void janus_videoroom_destroy_session(janus_plugin_session *handle, int *error);
 char *janus_videoroom_query_session(janus_plugin_session *handle);
 int janus_create_videoroom_by_id(guint64 room_id);
 int janus_post_to_slack(guint64 room_id, gchar * name);
+void prune_videoroom_if_empty();
                         
 /* Plugin setup */
 static janus_plugin janus_videoroom_plugin =
@@ -404,7 +405,13 @@ static void session_free(gpointer data) {
 		session->handle = NULL;
 		g_free(session);
 		session = NULL;
+        prune_videoroom_if_empty();
 	}
+}
+
+void prune_videoroom_if_empty()
+{
+    
 }
 
 /* Convenience wrapper function for session_free that corresponds to GHRFunc() format for hash table cleanup */
@@ -3290,6 +3297,8 @@ static void janus_videoroom_participant_free(janus_videoroom_participant *p) {
 		p->vrc = NULL;
 	}
 
+	janus_videoroom * room= (janus_videoroom *)p->room;
+        
 	janus_mutex_lock(&p->listeners_mutex);
 	while(p->listeners) {
 		janus_videoroom_listener *l = (janus_videoroom_listener *)p->listeners->data;
@@ -3303,5 +3312,11 @@ static void janus_videoroom_participant_free(janus_videoroom_participant *p) {
 
 	janus_mutex_destroy(&p->listeners_mutex);
 
+    if (g_slist_length(room->participants) == 0)
+    {
+        JANUS_LOG(LOG_INFO, "Last participant has left, mark room dead\n");
+        room->destroyed = janus_get_monotonic_time();
+    }
+        
 	free(p);
 }
