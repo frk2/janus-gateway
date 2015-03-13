@@ -3312,7 +3312,7 @@ static void janus_videoroom_participant_free(janus_videoroom_participant *p) {
 
 	janus_mutex_destroy(&p->listeners_mutex);
 
-    if (g_slist_length(room->participants) == 0)
+    if (g_hash_table_size(room->participants) == 0)
     {
         JANUS_LOG(LOG_INFO, "Last participant has left, mark room dead\n");
         room->destroyed = janus_get_monotonic_time();
