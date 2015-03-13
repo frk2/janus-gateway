@@ -153,7 +153,7 @@ void janus_videoroom_hangup_media(janus_plugin_session *handle);
 void janus_videoroom_destroy_session(janus_plugin_session *handle, int *error);
 char *janus_videoroom_query_session(janus_plugin_session *handle);
 int janus_create_videoroom_by_id(guint64 room_id);
-int janus_post_to_slack(guint64 room_id, gchar * name);
+int janus_post_to_slack(guint64 room_id, gchar * name, int type);
 void prune_videoroom_if_empty();
                         
 /* Plugin setup */
@@ -786,10 +786,14 @@ void janus_videoroom_destroy_session(janus_plugin_session *handle, int *error) {
 	return;
 }
 
-int janus_post_to_slack(guint64 room_id, gchar* name)
+int janus_post_to_slack(guint64 room_id, gchar* name, int type)
 {
+    
     char jsondata[500];
-    g_snprintf(jsondata, 500, "{\"text\":\"%s started a audio call. To join please go to http://sh-god-test1.ec2.tinyspeck.com/janus-serverside/videomcutest.html?roomid=%"SCNu64"\"}", name,room_id);
+    if (type == 0)
+        g_snprintf(jsondata, 500, "{\"text\":\"%s started a audio call. To join please go to http://sh-god-test1.ec2.tinyspeck.com/janus-serverside/videomcutest.html?roomid=%"SCNu64"\"}", name,room_id);
+    else if (type == 1)
+        g_snprintf(jsondata, 500, "{\"text\":\"%s's call has ended. So long and thanks for all the fish!\"}", name);
     curl_post("https://hooks.slack.com/services/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",jsondata);
 }
 
@@ -1777,7 +1781,10 @@ static void *janus_videoroom_handler(void *data) {
 				guint64 user_id = 0;
 				json_t *id = json_object_get(root, "id");
                 if (just_created_videoroom == TRUE)
-                    janus_post_to_slack(room_id,display_text);
+                {
+                    janus_post_to_slack(room_id,display_text,0);
+                    videoroom->room_name = strdup(display_text);
+                }
                 
 				if(id) {
 					if(!json_is_integer(id)) {
@@ -3315,8 +3322,14 @@ static void janus_videoroom_participant_free(janus_videoroom_participant *p) {
     if (g_hash_table_size(room->participants) == 0)
     {
         JANUS_LOG(LOG_INFO, "Last participant has left, mark room dead\n");
+        janus_post_to_slack(room->room_id,room->room_name,1);
+        janus_mutex_lock(&rooms_mutex);
         room->destroyed = janus_get_monotonic_time();
         old_rooms = g_list_append(old_rooms, room);
+        janus_mutex_unlock(&rooms_mutex);
+        
+        
+        
     }
         
 	free(p);
